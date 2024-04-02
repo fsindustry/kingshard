@@ -204,7 +204,6 @@ type (
 const (
 	defaultMemory = 32 << 20 // 32 MB
 	indexPage     = "index.html"
-	defaultIndent = "  "
 )
 
 func (c *context) writeContentType(value string) {
@@ -404,46 +403,24 @@ func (c *context) String(code int, s string) (err error) {
 	return c.Blob(code, MIMETextPlainCharsetUTF8, []byte(s))
 }
 
-func (c *context) jsonPBlob(code int, callback string, i interface{}) (err error) {
-	enc := json.NewEncoder(c.response)
+func (c *context) JSON(code int, i interface{}) (err error) {
 	_, pretty := c.QueryParams()["pretty"]
 	if c.echo.Debug || pretty {
-		enc.SetIndent("", "  ")
+		return c.JSONPretty(code, i, "  ")
 	}
-	c.writeContentType(MIMEApplicationJavaScriptCharsetUTF8)
-	c.response.WriteHeader(code)
-	if _, err = c.response.Write([]byte(callback + "(")); err != nil {
+	b, err := json.Marshal(i)
+	if err != nil {
 		return
 	}
-	if err = enc.Encode(i); err != nil {
-		return
-	}
-	if _, err = c.response.Write([]byte(");")); err != nil {
-		return
-	}
-	return
-}
-
-func (c *context) json(code int, i interface{}, indent string) error {
-	enc := json.NewEncoder(c.response)
-	if indent != "" {
-		enc.SetIndent("", indent)
-	}
-	c.writeContentType(MIMEApplicationJSONCharsetUTF8)
-	c.response.WriteHeader(code)
-	return enc.Encode(i)
-}
-
-func (c *context) JSON(code int, i interface{}) (err error) {
-	indent := ""
-	if _, pretty := c.QueryParams()["pretty"]; c.echo.Debug || pretty {
-		indent = defaultIndent
-	}
-	return c.json(code, i, indent)
+	return c.JSONBlob(code, b)
 }
 
 func (c *context) JSONPretty(code int, i interface{}, indent string) (err error) {
-	return c.json(code, i, indent)
+	b, err := json.MarshalIndent(i, "", indent)
+	if err != nil {
+		return
+	}
+	return c.JSONBlob(code, b)
 }
 
 func (c *context) JSONBlob(code int, b []byte) (err error) {
@@ -451,7 +428,11 @@ func (c *context) JSONBlob(code int, b []byte) (err error) {
 }
 
 func (c *context) JSONP(code int, callback string, i interface{}) (err error) {
-	return c.jsonPBlob(code, callback, i)
+	b, err := json.Marshal(i)
+	if err != nil {
+		return
+	}
+	return c.JSONPBlob(code, callback, b)
 }
 
 func (c *context) JSONPBlob(code int, callback string, b []byte) (err error) {
@@ -467,29 +448,24 @@ func (c *context) JSONPBlob(code int, callback string, b []byte) (err error) {
 	return
 }
 
-func (c *context) xml(code int, i interface{}, indent string) (err error) {
-	c.writeContentType(MIMEApplicationXMLCharsetUTF8)
-	c.response.WriteHeader(code)
-	enc := xml.NewEncoder(c.response)
-	if indent != "" {
-		enc.Indent("", indent)
+func (c *context) XML(code int, i interface{}) (err error) {
+	_, pretty := c.QueryParams()["pretty"]
+	if c.echo.Debug || pretty {
+		return c.XMLPretty(code, i, "  ")
 	}
-	if _, err = c.response.Write([]byte(xml.Header)); err != nil {
+	b, err := xml.Marshal(i)
+	if err != nil {
 		return
 	}
-	return enc.Encode(i)
-}
-
-func (c *context) XML(code int, i interface{}) (err error) {
-	indent := ""
-	if _, pretty := c.QueryParams()["pretty"]; c.echo.Debug || pretty {
-		indent = defaultIndent
-	}
-	return c.xml(code, i, indent)
+	return c.XMLBlob(code, b)
 }
 
 func (c *context) XMLPretty(code int, i interface{}, indent string) (err error) {
-	return c.xml(code, i, indent)
+	b, err := xml.MarshalIndent(i, "", indent)
+	if err != nil {
+		return
+	}
+	return c.XMLBlob(code, b)
 }
 
 func (c *context) XMLBlob(code int, b []byte) (err error) {
@@ -597,4 +573,3 @@ func (c *context) Reset(r *http.Request, w http.ResponseWriter) {
 	// NOTE: Don't reset because it has to have length c.echo.maxParam at all times
 	// c.pvalues = nil
 }
-

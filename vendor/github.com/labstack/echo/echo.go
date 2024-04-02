@@ -138,7 +138,7 @@ const (
 	OPTIONS = http.MethodOptions
 	PATCH   = http.MethodPatch
 	POST    = http.MethodPost
-	// PROPFIND = "PROPFIND"
+	//PROPFIND = "PROPFIND"
 	PUT   = http.MethodPut
 	TRACE = http.MethodTrace
 )
@@ -166,8 +166,7 @@ const (
 
 const (
 	charsetUTF8 = "charset=UTF-8"
-	// PROPFIND Method can be used on collection and property resources.
-	PROPFIND = "PROPFIND"
+	PROPFIND    = "PROPFIND"
 )
 
 // Headers
@@ -220,8 +219,7 @@ const (
 )
 
 const (
-	// Version of Echo
-	Version = "3.3.10-dev"
+	Version = "3.3.8"
 	website = "https://echo.labstack.com"
 	// http://patorjk.com/software/taag/#p=display&f=Small%20Slant&t=Echo
 	banner = `
@@ -684,7 +682,7 @@ func (e *Echo) Close() error {
 	return e.Server.Close()
 }
 
-// Shutdown stops the server gracefully.
+// Shutdown stops server the gracefully.
 // It internally calls `http.Server#Shutdown()`.
 func (e *Echo) Shutdown(ctx stdContext.Context) error {
 	if err := e.TLSServer.Shutdown(ctx); err != nil {
@@ -707,7 +705,6 @@ func (he *HTTPError) Error() string {
 	return fmt.Sprintf("code=%d, message=%v", he.Code, he.Message)
 }
 
-// SetInternal sets error to HTTPError.Internal
 func (he *HTTPError) SetInternal(err error) *HTTPError {
 	he.Internal = err
 	return he
