@@ -1,4 +1,4 @@
-module github.com/flike/kingshard
+module github.com/fsindustry/kingshard
 
 go 1.20
 

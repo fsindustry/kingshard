@@ -9,11 +9,13 @@ all: build
 build: kingshard
 goyacc:
 	go build -o ${ROOT}/bin/goyacc ${ROOT}/goyacc
-	${ROOT}/bin/goyacc -o ${ROOT}/sqlparser/sql.go ${ROOT}/sqlparser/sql.y
-	gofmt -w ${ROOT}/sqlparser/sql.go
+	${ROOT}/bin/goyacc -o ${ROOT}/pkg/sqlparser/sql.go ${ROOT}/pkg/sqlparser/sql.y
+	gofmt -w ${ROOT}/pkg/sqlparser/sql.go
 kingshard:
 	go build -mod=vendor -ldflags ${GO_LDFLAGS} -o ./bin/kingshard ./cmd/kingshard
 clean:
 	@rm -rf bin
 test:
 	go test ./go/... -race
+
+.PHONY: all goyacc
