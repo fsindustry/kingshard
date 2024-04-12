@@ -37,10 +37,17 @@ groups:
         # kingshard连接该node中mysql的用户名和密码，master和slave的用户名和密码必须一致
         user: root
         password: Huawei@123
-        # master的地址和端口
-        master: 127.0.0.1:3306
-        # slave的地址、端口和读权重，@后面的表示该slave的读权重。可不配置slave
-        #slave : 192.168.0.12@2,192.168.0.13@3
+        # 节点角色
+        # MASTER：主库；
+        # REPLICA：备库，可提升为主；
+        # READONLY：从库，提供只读请求，以及运维任务，包括：备份、dump数据、分析型任务执行；
+        # BACKUP：备份实例，提供备份快找；
+        # ANALYSIS：分析型实例，专门进行计算任务SQL的执行
+        # DRAINED：下线状态的实例，比如进行重分片操作的实例；
+        role: Master
+        # 节点地址和端口
+        addr: 127.0.0.1:3306
+        weight: 3
         #kingshard在300秒内都连接不上mysql，kingshard则会下线该mysql
         down_after_noalive: 300
   - name: shard2 # 分片名称
@@ -51,10 +58,17 @@ groups:
         # kingshard连接该node中mysql的用户名和密码，master和slave的用户名和密码必须一致
         user: root
         password: Huawei@123
-        # master的地址和端口
-        master: 127.0.0.1:3307
-        # slave的地址、端口和读权重，@后面的表示该slave的读权重。可不配置slave
-        #slave : 192.168.0.12@2,192.168.0.13@3
+        # 节点角色
+        # MASTER：主库；
+        # REPLICA：备库，可提升为主；
+        # READONLY：从库，提供只读请求，以及运维任务，包括：备份、dump数据、分析型任务执行；
+        # BACKUP：备份实例，提供备份快找；
+        # ANALYSIS：分析型实例，专门进行计算任务SQL的执行
+        # DRAINED：下线状态的实例，比如进行重分片操作的实例；
+        role: Master
+        # 节点地址和端口
+        addr: 127.0.0.1:3306
+        weight: 3
         #kingshard在300秒内都连接不上mysql，kingshard则会下线该mysql
         down_after_noalive: 300
   - name: shard3 # 分片名称
@@ -65,10 +79,17 @@ groups:
         # kingshard连接该node中mysql的用户名和密码，master和slave的用户名和密码必须一致
         user: root
         password: Huawei@123
-        # master的地址和端口
-        master: 127.0.0.1:3308
-        # slave的地址、端口和读权重，@后面的表示该slave的读权重。可不配置slave
-        #slave : 192.168.0.12@2,192.168.0.13@3
+        # 节点角色
+        # MASTER：主库；
+        # REPLICA：备库，可提升为主；
+        # READONLY：从库，提供只读请求，以及运维任务，包括：备份、dump数据、分析型任务执行；
+        # BACKUP：备份实例，提供备份快找；
+        # ANALYSIS：分析型实例，专门进行计算任务SQL的执行
+        # DRAINED：下线状态的实例，比如进行重分片操作的实例；
+        role: Master
+        # 节点地址和端口
+        addr: 127.0.0.1:3306
+        weight: 3
         #kingshard在300秒内都连接不上mysql，kingshard则会下线该mysql
         down_after_noalive: 300
 
@@ -109,3 +130,55 @@ schema_list:
         #表示每个子表包含的最大记录数，也就是说每个子表最多包好10000条记录。即子表1对应的id为[0,10000),子表2[10000,20000)....
         table_row_limit: 10000
 
+##############################
+# 路由规则配置
+##############################
+routing_rules:
+  - # 匹配类型，取值：
+    # SQL：基于SQL语句抽象正则
+    # TABLE：基于表名，多张表以逗号分隔
+    # DB：基于库名，多个库以逗号分隔
+    # USER：基于用户，多个用户以逗号分隔
+    match_type: SQL
+    # 匹配内容，根据 match_type 的不同而不同
+    match_content: select * from db1.t1
+    # 匹配规则后执行的动作，取值：
+    # reject：拒绝请求
+    # routing：路由请求
+    action: routing
+    # 路由目标类型，取值：
+    # role：路由到具体role的节点
+    # name: 路由到具体name的节点
+    target_type: role
+    # 路由目标的名称
+    # 1）若 target_type = role，可取值为：
+    # MASTER：主节点；
+    # REPLICA：备节点，可提升为主，可承担读流量；
+    # READONLY：只读节点，提供只读请求，以及运维任务，包括：备份、dump数据、分析型任务执行；
+    # ANALYSIS：分析型节点，专门进行计算任务SQL的执行；
+    # 2）若 target_type = name，则配置为node的name：
+    target_name: ANALYSIS
+  - # 匹配类型，取值：
+    # SQL：基于SQL语句抽象正则
+    # TABLE：基于表名，多张表以逗号分隔
+    # DB：基于库名，多个库以逗号分隔
+    # USER：基于用户，多个用户以逗号分隔
+    match_type: TABLE
+    # 匹配内容，根据 match_type 的不同而不同
+    match_content: t1,t2,t3
+    # 匹配规则后执行的动作，取值：
+    # reject：拒绝请求
+    # routing：路由请求
+    action: routing
+    # 路由目标类型，取值：
+    # role：路由到具体role的节点
+    # name: 路由到具体name的节点
+    target_type: role
+    # 路由目标的名称
+    # 1）若 target_type = role，可取值为：
+    # MASTER：主节点；
+    # REPLICA：备节点，可提升为主，可承担读流量；
+    # READONLY：只读节点，提供只读请求，以及运维任务，包括：备份、dump数据、分析型任务执行；
+    # ANALYSIS：分析型节点，专门进行计算任务SQL的执行；
+    # 2）若 target_type = name，则配置为node的name：
+    target_name: MASTER

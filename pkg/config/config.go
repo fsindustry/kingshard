@@ -33,14 +33,15 @@ type Config struct {
 	WebUser     string `yaml:"web_user"`
 	WebPassword string `yaml:"web_password"`
 
-	LogPath     string       `yaml:"log_path"`
-	LogLevel    string       `yaml:"log_level"`
-	LogSql      string       `yaml:"log_sql"`
-	SlowLogTime int          `yaml:"slow_log_time"`
-	AllowIps    string       `yaml:"allow_ips"`
-	BlsFile     string       `yaml:"blacklist_sql_file"`
-	Charset     string       `yaml:"proxy_charset"`
-	Nodes       []NodeConfig `yaml:"nodes"`
+	LogPath     string        `yaml:"log_path"`
+	LogLevel    string        `yaml:"log_level"`
+	LogSql      string        `yaml:"log_sql"`
+	SlowLogTime int           `yaml:"slow_log_time"`
+	AllowIps    string        `yaml:"allow_ips"`
+	BlsFile     string        `yaml:"blacklist_sql_file"`
+	Charset     string        `yaml:"proxy_charset"`
+	Nodes       []NodeConfig  `yaml:"nodes"`
+	Groups      []GroupConfig `yaml:"groups"`
 
 	SchemaList []SchemaConfig `yaml:"schema_list"`
 }
@@ -51,6 +52,12 @@ type UserConfig struct {
 	Password string `yaml:"password"`
 }
 
+// shard group
+type GroupConfig struct {
+	Name  string       `yaml:"name"`
+	Nodes []NodeConfig `yaml:"nodes"`
+}
+
 // node节点对应的配置
 type NodeConfig struct {
 	Name             string `yaml:"name"`
@@ -59,6 +66,10 @@ type NodeConfig struct {
 
 	User     string `yaml:"user"`
 	Password string `yaml:"password"`
+
+	Role      string `yaml:"role"`
+	Addr      string `yaml:"addr"`
+	CheckAddr string `yaml:"checkAddr"`
 
 	Master string `yaml:"master"`
 	Slave  string `yaml:"slave"`
