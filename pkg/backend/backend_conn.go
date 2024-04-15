@@ -266,7 +266,7 @@ func (c *Conn) writeAuthHandshake() error {
 	data[pos] = byte(len(auth))
 	pos += 1 + copy(data[pos+1:], auth)
 
-	// db [null terminated string]
+	// node [null terminated string]
 	if len(c.db) > 0 {
 		pos += copy(data[pos:], c.db)
 		//data[pos] = 0x00

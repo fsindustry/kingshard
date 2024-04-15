@@ -21,7 +21,7 @@ import (
 )
 
 func TestConn_Handshake(t *testing.T) {
-	c := newTestDBConn(t)
+	c := newTestNodeConn(t)
 
 	if err := c.Ping(); err != nil {
 		t.Fatal(err)
@@ -32,7 +32,7 @@ func TestConn_Handshake(t *testing.T) {
 
 func TestConn_DeleteTable(t *testing.T) {
 	server := newTestServer(t)
-	n := server.nodes["node1"]
+	n := server.groups["node1"]
 	c, err := n.GetMasterConn()
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +58,7 @@ func TestConn_CreateTable(t *testing.T) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8`
 
 	server := newTestServer(t)
-	n := server.nodes["node1"]
+	n := server.groups["node1"]
 	c, err := n.GetMasterConn()
 	if err != nil {
 		t.Fatal(err)
@@ -74,7 +74,7 @@ func TestConn_CreateTable(t *testing.T) {
 func TestConn_Insert(t *testing.T) {
 	s := `insert into kingshard_test_proxy_conn (id, str, f, e, u, i) values(1, "abc", 3.14, "test1", 255, -127)`
 
-	c := newTestDBConn(t)
+	c := newTestNodeConn(t)
 	defer c.Close()
 
 	if r, err := c.Execute(s); err != nil {
@@ -89,7 +89,7 @@ func TestConn_Insert(t *testing.T) {
 func TestConn_Select(t *testing.T) {
 	s := `select str, f, e, u, i, ni from kingshard_test_proxy_conn where id = 1`
 
-	c := newTestDBConn(t)
+	c := newTestNodeConn(t)
 	defer c.Close()
 
 	if r, err := c.Execute(s); err != nil {
@@ -132,7 +132,7 @@ func TestConn_Select(t *testing.T) {
 func TestConn_Update(t *testing.T) {
 	s := `update kingshard_test_proxy_conn set str = "123" where id = 1`
 
-	c := newTestDBConn(t)
+	c := newTestNodeConn(t)
 	defer c.Close()
 
 	if _, err := c.Execute(s); err != nil {
@@ -151,7 +151,7 @@ func TestConn_Update(t *testing.T) {
 func TestConn_Replace(t *testing.T) {
 	s := `replace into kingshard_test_proxy_conn (id, str, f) values(1, 'abc', 3.14159)`
 
-	c := newTestDBConn(t)
+	c := newTestNodeConn(t)
 	defer c.Close()
 
 	if r, err := c.Execute(s); err != nil {
@@ -198,7 +198,7 @@ func TestConn_Replace(t *testing.T) {
 func TestConn_Delete(t *testing.T) {
 	s := `delete from kingshard_test_proxy_conn where id = 100000`
 
-	c := newTestDBConn(t)
+	c := newTestNodeConn(t)
 	defer c.Close()
 
 	if r, err := c.Execute(s); err != nil {
@@ -211,7 +211,7 @@ func TestConn_Delete(t *testing.T) {
 }
 
 func TestConn_SetAutoCommit(t *testing.T) {
-	c := newTestDBConn(t)
+	c := newTestNodeConn(t)
 	defer c.Close()
 
 	if r, err := c.Execute("set autocommit = 1"); err != nil {
@@ -232,10 +232,10 @@ func TestConn_SetAutoCommit(t *testing.T) {
 }
 
 func TestConn_Trans(t *testing.T) {
-	c1 := newTestDBConn(t)
+	c1 := newTestNodeConn(t)
 	defer c1.Close()
 
-	c2 := newTestDBConn(t)
+	c2 := newTestNodeConn(t)
 	defer c2.Close()
 
 	var err error
@@ -282,7 +282,7 @@ func TestConn_Trans(t *testing.T) {
 }
 
 func TestConn_SetNames(t *testing.T) {
-	c := newTestDBConn(t)
+	c := newTestNodeConn(t)
 	defer c.Close()
 
 	if err := c.SetCharset("gb2312", 24); err != nil {
@@ -298,7 +298,7 @@ func TestConn_LastInsertId(t *testing.T) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8`
 
 	server := newTestServer(t)
-	n := server.nodes["node1"]
+	n := server.groups["node1"]
 
 	c1, err := n.GetMasterConn()
 	if err != nil {
@@ -314,7 +314,7 @@ func TestConn_LastInsertId(t *testing.T) {
 
 	c1.Close()
 
-	c := newTestDBConn(t)
+	c := newTestNodeConn(t)
 	defer c.Close()
 
 	r, err := c.Execute(`insert into kingshard_test_conn_id (str) values ("abc")`)
@@ -360,7 +360,7 @@ func TestConn_LastInsertId(t *testing.T) {
 }
 
 func TestConn_RowCount(t *testing.T) {
-	c := newTestDBConn(t)
+	c := newTestNodeConn(t)
 	defer c.Close()
 
 	r, err := c.Execute(`insert into kingshard_test_proxy_conn (id, str) values (1002, "abc")`)
@@ -388,7 +388,7 @@ func TestConn_RowCount(t *testing.T) {
 }
 
 func TestConn_SelectVersion(t *testing.T) {
-	c := newTestDBConn(t)
+	c := newTestNodeConn(t)
 	defer c.Close()
 
 	if _, err := c.Execute("select version()"); err != nil {

@@ -113,7 +113,7 @@ func (c *ClientConn) handleQuery(sql string) (err error) {
 	return nil
 }
 
-func (c *ClientConn) getBackendConn(n *backend.Node, fromSlave bool) (co *backend.BackendConn, err error) {
+func (c *ClientConn) getBackendConn(n *backend.Group, fromSlave bool) (co *backend.BackendConn, err error) {
 	if !c.isInTransaction() {
 		if fromSlave {
 			co, err = n.GetSlaveConn()
@@ -171,23 +171,23 @@ func (c *ClientConn) getShardConns(fromSlave bool, plan *router.Plan) (map[strin
 	}
 
 	nodesCount := len(plan.RouteNodeIndexs)
-	nodes := make([]*backend.Node, 0, nodesCount)
+	groups := make([]*backend.Group, 0, nodesCount)
 	for i := 0; i < nodesCount; i++ {
 		nodeIndex := plan.RouteNodeIndexs[i]
-		nodes = append(nodes, c.proxy.GetNode(plan.Rule.Nodes[nodeIndex]))
+		groups = append(groups, c.proxy.GetNode(plan.Rule.Nodes[nodeIndex]))
 	}
 	if c.isInTransaction() {
-		if 1 < len(nodes) {
+		if 1 < len(groups) {
 			return nil, errors.ErrTransInMulti
 		}
 		//exec in multi node
-		if len(c.txConns) == 1 && c.txConns[nodes[0]] == nil {
+		if len(c.txConns) == 1 && c.txConns[groups[0]] == nil {
 			return nil, errors.ErrTransInMulti
 		}
 	}
 	conns := make(map[string]*backend.BackendConn)
 	var co *backend.BackendConn
-	for _, n := range nodes {
+	for _, n := range groups {
 		co, err = c.getBackendConn(n, fromSlave)
 		if err != nil {
 			break

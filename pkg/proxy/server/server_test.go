@@ -26,14 +26,14 @@ import (
 var testServerOnce sync.Once
 var testServer *Server
 var testDBOnce sync.Once
-var testDB *backend.DB
+var testNode *backend.Node
 
 var testConfigData = []byte(`
 addr : 127.0.0.1:9696
 user : root
 password : 
 
-nodes :
+groups :
 - 
     name : node1 
     down_after_noalive : 300
@@ -45,7 +45,7 @@ nodes :
 
 schema :
     default: node1  
-    nodes: [node1]
+    groups: [node1]
     rules:
         shard:
             -
@@ -73,19 +73,19 @@ func newTestServer(t *testing.T) *Server {
 	return testServer
 }
 
-func newTestDB(t *testing.T) *backend.DB {
+func newTestNode(t *testing.T) *backend.Node {
 	newTestServer(t)
 
 	f := func() {
-		testDB, _ = backend.Open("127.0.0.1:3306", "root", "flike", "kingshard", 100)
+		testNode, _ = backend.Open("127.0.0.1:3306", "root", "flike", "kingshard", 100)
 	}
 
 	testDBOnce.Do(f)
-	return testDB
+	return testNode
 }
 
-func newTestDBConn(t *testing.T) *backend.BackendConn {
-	db := newTestDB(t)
+func newTestNodeConn(t *testing.T) *backend.BackendConn {
+	db := newTestNode(t)
 
 	c, err := db.GetConn()
 

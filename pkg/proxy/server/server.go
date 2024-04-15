@@ -37,8 +37,8 @@ import (
 )
 
 type Schema struct {
-	nodes map[string]*backend.Node
-	rule  *router.Router
+	groups map[string]*backend.Group
+	rule   *router.Router
 }
 
 type BlacklistSqls struct {
@@ -69,7 +69,7 @@ type Server struct {
 	allowips           [2][]IPInfo
 
 	counter *Counter
-	nodes   map[string]*backend.Node
+	groups  map[string]*backend.Group
 	schemas map[string]*Schema //user : schema of user
 
 	listener net.Listener
@@ -148,9 +148,9 @@ func parseBlackListSqls(blackListFilePath string) (*BlacklistSqls, error) {
 	return bs, nil
 }
 
-func parseNode(cfg config.NodeConfig) (*backend.Node, error) {
+func parseGroup(cfg config.NodeConfig) (*backend.Group, error) {
 	var err error
-	n := new(backend.Node)
+	n := new(backend.Group)
 	n.Cfg = cfg
 
 	n.DownAfterNoAlive = time.Duration(cfg.DownAfterNoAlive) * time.Second
@@ -169,42 +169,42 @@ func parseNode(cfg config.NodeConfig) (*backend.Node, error) {
 	return n, nil
 }
 
-func parseNodes(cfgNodes []config.NodeConfig) (map[string]*backend.Node, error) {
-	nodes := make(map[string]*backend.Node, len(cfgNodes))
+func parseGroups(cfgNodes []config.NodeConfig) (map[string]*backend.Group, error) {
+	groups := make(map[string]*backend.Group, len(cfgNodes))
 	for _, v := range cfgNodes {
-		if _, ok := nodes[v.Name]; ok {
+		if _, ok := groups[v.Name]; ok {
 			return nil, fmt.Errorf("duplicate node [%s]", v.Name)
 		}
 
-		n, err := parseNode(v)
+		n, err := parseGroup(v)
 		if err != nil {
 			return nil, err
 		}
 
-		nodes[v.Name] = n
+		groups[v.Name] = n
 	}
 
-	return nodes, nil
+	return groups, nil
 }
 
-func parseSchemaList(schemaCfgList []config.SchemaConfig, allNodes map[string]*backend.Node) (map[string]*Schema, error) {
+func parseSchemaList(schemaCfgList []config.SchemaConfig, allGroups map[string]*backend.Group) (map[string]*Schema, error) {
 	schemas := make(map[string]*Schema)
 	for _, schemaCfg := range schemaCfgList {
 		if len(schemaCfg.Nodes) == 0 {
 			return nil, fmt.Errorf("schema must have a node")
 		}
 
-		nodes := make(map[string]*backend.Node)
+		groups := make(map[string]*backend.Group)
 		for _, n := range schemaCfg.Nodes {
-			if allNodes[n] == nil {
+			if allGroups[n] == nil {
 				return nil, fmt.Errorf("schema node [%s] config is not exists", n)
 			}
 
-			if _, ok := nodes[n]; ok {
+			if _, ok := groups[n]; ok {
 				return nil, fmt.Errorf("schema node [%s] duplicate", n)
 			}
 
-			nodes[n] = allNodes[n]
+			groups[n] = allGroups[n]
 		}
 
 		rule, err := router.NewRouter(&schemaCfg)
@@ -213,8 +213,8 @@ func parseSchemaList(schemaCfgList []config.SchemaConfig, allNodes map[string]*b
 		}
 
 		schemas[schemaCfg.User] = &Schema{
-			nodes: nodes,
-			rule:  rule,
+			groups: groups,
+			rule:   rule,
 		}
 
 	}
@@ -270,13 +270,13 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		s.allowips[another] = allowIps
 	}
 
-	if nodes, err := parseNodes(s.cfg.Nodes); err != nil {
+	if nodes, err := parseGroups(s.cfg.Nodes); err != nil {
 		return nil, err
 	} else {
-		s.nodes = nodes
+		s.groups = nodes
 	}
 
-	if schemas, err := parseSchemaList(s.cfg.SchemaList, s.nodes); err != nil {
+	if schemas, err := parseSchemaList(s.cfg.SchemaList, s.groups); err != nil {
 		return nil, err
 	} else {
 		s.schemas = schemas
@@ -327,7 +327,7 @@ func (s *Server) newClientConn(co net.Conn) *ClientConn {
 	func() {
 		s.configUpdateMutex.RLock()
 		defer s.configUpdateMutex.RUnlock()
-		c.nodes = s.nodes
+		c.groups = s.groups
 		c.proxy = s
 		c.configVer = s.configVer
 	}()
@@ -343,7 +343,7 @@ func (s *Server) newClientConn(co net.Conn) *ClientConn {
 
 	c.salt, _ = mysql.RandomBuf(20)
 
-	c.txConns = make(map[*backend.Node]*backend.BackendConn)
+	c.txConns = make(map[*backend.Group]*backend.BackendConn)
 
 	c.closed = false
 
@@ -712,12 +712,12 @@ func (s *Server) DownSlave(node, slaveAddr string) error {
 	return n.DownSlave(slaveAddr, backend.ManualDown)
 }
 
-func (s *Server) GetNode(name string) *backend.Node {
-	return s.nodes[name]
+func (s *Server) GetNode(name string) *backend.Group {
+	return s.groups[name]
 }
 
-func (s *Server) GetAllNodes() map[string]*backend.Node {
-	return s.nodes
+func (s *Server) GetAllNodes() map[string]*backend.Group {
+	return s.groups
 }
 
 func (s *Server) GetSchema(user string) *Schema {
@@ -767,8 +767,8 @@ func (s *Server) UpdateConfig(newCfg *config.Config) {
 		return
 	}
 
-	//parse new nodes
-	nodes, err := parseNodes(newCfg.Nodes)
+	//parse new groups
+	nodes, err := parseGroups(newCfg.Nodes)
 	if nil != err {
 		golog.Error("Server", "UpdateConfig", err.Error(), 0)
 		return
@@ -829,11 +829,11 @@ func (s *Server) UpdateConfig(newCfg *config.Config) {
 
 	s.ChangeSlowLogTime(fmt.Sprintf("%d", newCfg.SlowLogTime))
 
-	//reset nodes: old nodes offline (stop check thread)
-	for _, n := range s.nodes {
+	//reset groups: old groups offline (stop check thread)
+	for _, n := range s.groups {
 		n.Online = false
 	}
-	s.nodes = nodes
+	s.groups = nodes
 
 	//reset schema
 	s.schemas = newSchemas
@@ -846,7 +846,7 @@ func (s *Server) GetMonitorData() map[string]map[string]string {
 	data := make(map[string]map[string]string)
 
 	// get all node's monitor data
-	for _, node := range s.nodes {
+	for _, node := range s.groups {
 		//get master monitor data
 		dbData := make(map[string]string)
 		idleConns, cacheConns, pushConnCount, popConnCount := node.Master.ConnCount()

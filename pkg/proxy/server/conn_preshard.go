@@ -28,7 +28,7 @@ import (
 )
 
 type ExecuteDB struct {
-	ExecNode *backend.Node
+	ExecNode *backend.Group
 	IsSlave  bool
 	sql      string
 }
@@ -91,7 +91,7 @@ func (c *ClientConn) preHandleShard(sql string) (bool, error) {
 	if executeDB == nil {
 		return false, nil
 	}
-	//get connection in DB
+	//get connection in Node
 	conn, err := c.getBackendConn(executeDB.ExecNode, executeDB.IsSlave)
 	defer c.closeConn(conn, false)
 	if err != nil {
@@ -137,8 +137,8 @@ func (c *ClientConn) GetTransExecDB(tokens []string, sql string) (*ExecuteDB, er
 	if 2 <= tokensLen {
 		if tokens[0][0] == mysql.COMMENT_PREFIX {
 			nodeName := strings.Trim(tokens[0], mysql.COMMENT_STRING)
-			if c.schema.nodes[nodeName] != nil {
-				executeDB.ExecNode = c.schema.nodes[nodeName]
+			if c.schema.groups[nodeName] != nil {
+				executeDB.ExecNode = c.schema.groups[nodeName]
 			}
 		}
 	}
@@ -199,8 +199,8 @@ func (c *ClientConn) setExecuteNode(tokens []string, tokensLen int, executeDB *E
 		//for /*node1*/
 		if 1 < len(tokens) && tokens[0][0] == mysql.COMMENT_PREFIX {
 			nodeName := strings.Trim(tokens[0], mysql.COMMENT_STRING)
-			if c.schema.nodes[nodeName] != nil {
-				executeDB.ExecNode = c.schema.nodes[nodeName]
+			if c.schema.groups[nodeName] != nil {
+				executeDB.ExecNode = c.schema.groups[nodeName]
 			}
 			//for /*node1*/ select
 			if strings.ToLower(tokens[1]) == mysql.TK_STR_SELECT {
@@ -477,7 +477,7 @@ func (c *ClientConn) handleShowColumns(sql string, tokens []string,
 						nodeName := showRule.Nodes[nodeIndex]
 						tokens[i+2] = fmt.Sprintf("%s_%04d", tableName, tableIndex)
 						executeDB.sql = strings.Join(tokens, " ")
-						executeDB.ExecNode = c.schema.nodes[nodeName]
+						executeDB.ExecNode = c.schema.groups[nodeName]
 						return nil
 					}
 				}

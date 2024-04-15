@@ -51,10 +51,10 @@ type ClientConn struct {
 
 	salt []byte
 
-	nodes  map[string]*backend.Node
+	groups map[string]*backend.Group
 	schema *Schema
 
-	txConns map[*backend.Node]*backend.BackendConn
+	txConns map[*backend.Group]*backend.BackendConn
 
 	closed bool
 
@@ -441,7 +441,7 @@ func (c *ClientConn) reloadConfig() error {
 	if nil == c.schema {
 		return fmt.Errorf("schema of user [%s] is null or user is deleted", c.user)
 	}
-	c.nodes = c.proxy.nodes
+	c.groups = c.proxy.groups
 
 	return nil
 }

@@ -20,7 +20,7 @@ import (
 
 func TestStmt_DropTable(t *testing.T) {
 	server := newTestServer(t)
-	n := server.nodes["node1"]
+	n := server.groups["node1"]
 	c, err := n.GetMasterConn()
 	if err != nil {
 		t.Fatal(err)
@@ -44,7 +44,7 @@ func TestStmt_CreateTable(t *testing.T) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8`
 
 	server := newTestServer(t)
-	n := server.nodes["node1"]
+	n := server.groups["node1"]
 	c, err := n.GetMasterConn()
 	if err != nil {
 		t.Fatal(err)
@@ -60,7 +60,7 @@ func TestStmt_CreateTable(t *testing.T) {
 func TestStmt_Insert(t *testing.T) {
 	str := `insert into kingshard_test_proxy_stmt (id, str, f, e, u, i) values (?, ?, ?, ?, ?, ?)`
 
-	c := newTestDBConn(t)
+	c := newTestNodeConn(t)
 	defer c.Close()
 
 	s, err := c.Prepare(str)
@@ -83,7 +83,7 @@ func TestStmt_Insert(t *testing.T) {
 func TestStmt_Select(t *testing.T) {
 	str := `select str, f, e from kingshard_test_proxy_stmt where id = ?`
 
-	c := newTestDBConn(t)
+	c := newTestNodeConn(t)
 	defer c.Close()
 
 	s, err := c.Prepare(str)
@@ -135,7 +135,7 @@ func TestStmt_Select(t *testing.T) {
 func TestStmt_NULL(t *testing.T) {
 	str := `insert into kingshard_test_proxy_stmt (id, str, f, e) values (?, ?, ?, ?)`
 
-	c := newTestDBConn(t)
+	c := newTestNodeConn(t)
 	defer c.Close()
 
 	s, err := c.Prepare(str)
@@ -195,7 +195,7 @@ func TestStmt_NULL(t *testing.T) {
 func TestStmt_Unsigned(t *testing.T) {
 	str := `insert into kingshard_test_proxy_stmt (id, u) values (?, ?)`
 
-	c := newTestDBConn(t)
+	c := newTestNodeConn(t)
 	defer c.Close()
 
 	s, err := c.Prepare(str)
@@ -237,7 +237,7 @@ func TestStmt_Unsigned(t *testing.T) {
 func TestStmt_Signed(t *testing.T) {
 	str := `insert into kingshard_test_proxy_stmt (id, i) values (?, ?)`
 
-	c := newTestDBConn(t)
+	c := newTestNodeConn(t)
 	defer c.Close()
 
 	s, err := c.Prepare(str)
@@ -259,7 +259,7 @@ func TestStmt_Signed(t *testing.T) {
 }
 
 func TestStmt_Trans(t *testing.T) {
-	c1 := newTestDBConn(t)
+	c1 := newTestNodeConn(t)
 	defer c1.Close()
 
 	if _, err := c1.Execute(`insert into kingshard_test_proxy_stmt (id, str) values (1002, "abc")`); err != nil {

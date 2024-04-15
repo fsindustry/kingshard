@@ -411,7 +411,7 @@ func (c *ClientConn) handleShowProxyConfig() (*mysql.Resultset, error) {
 	const (
 		Column = 2
 	)
-	for name := range c.schema.nodes {
+	for name := range c.schema.groups {
 		nodeNames = append(nodeNames, name)
 	}
 	for user, _ := range c.proxy.users {
@@ -424,7 +424,7 @@ func (c *ClientConn) handleShowProxyConfig() (*mysql.Resultset, error) {
 	rows = append(rows, []string{"LogLevel", c.proxy.cfg.LogLevel})
 	rows = append(rows, []string{"LogSql", c.proxy.logSql[c.proxy.logSqlIndex]})
 	rows = append(rows, []string{"SlowLogTime", strconv.Itoa(c.proxy.slowLogTime[c.proxy.slowLogTimeIndex])})
-	rows = append(rows, []string{"Nodes_Count", fmt.Sprintf("%d", len(c.proxy.nodes))})
+	rows = append(rows, []string{"Nodes_Count", fmt.Sprintf("%d", len(c.proxy.groups))})
 	rows = append(rows, []string{"Nodes_List", strings.Join(nodeNames, ",")})
 	rows = append(rows, []string{"ClientConns", fmt.Sprintf("%d", c.proxy.counter.ClientConns)})
 	rows = append(rows, []string{"ClientQPS", fmt.Sprintf("%d", c.proxy.counter.OldClientQPS)})
@@ -461,7 +461,7 @@ func (c *ClientConn) handleShowNodeConfig() (*mysql.Resultset, error) {
 	)
 
 	//var nodeRows [][]string
-	for name, node := range c.schema.nodes {
+	for name, node := range c.schema.groups {
 		//"master"
 		idleConns, cacheConns, pushConnCount, popConnCount := node.Master.ConnCount()
 

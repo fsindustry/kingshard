@@ -50,53 +50,53 @@ func Gcd(ary []int) int {
 	return min
 }
 
-func (n *Node) InitBalancer() {
+func (g *Group) InitBalancer() {
 	var sum int
-	n.LastSlaveIndex = 0
-	gcd := Gcd(n.SlaveWeights)
+	g.LastSlaveIndex = 0
+	gcd := Gcd(g.SlaveWeights)
 
-	for _, weight := range n.SlaveWeights {
+	for _, weight := range g.SlaveWeights {
 		sum += weight / gcd
 	}
 
-	n.RoundRobinQ = make([]int, 0, sum)
-	for index, weight := range n.SlaveWeights {
+	g.RoundRobinQ = make([]int, 0, sum)
+	for index, weight := range g.SlaveWeights {
 		for j := 0; j < weight/gcd; j++ {
-			n.RoundRobinQ = append(n.RoundRobinQ, index)
+			g.RoundRobinQ = append(g.RoundRobinQ, index)
 		}
 	}
 
 	//random order
-	if 1 < len(n.SlaveWeights) {
+	if 1 < len(g.SlaveWeights) {
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		for i := 0; i < sum; i++ {
 			x := r.Intn(sum)
-			temp := n.RoundRobinQ[x]
+			temp := g.RoundRobinQ[x]
 			other := sum % (x + 1)
-			n.RoundRobinQ[x] = n.RoundRobinQ[other]
-			n.RoundRobinQ[other] = temp
+			g.RoundRobinQ[x] = g.RoundRobinQ[other]
+			g.RoundRobinQ[other] = temp
 		}
 	}
 }
 
-func (n *Node) GetNextSlave() (*DB, error) {
+func (g *Group) GetNextSlave() (*Node, error) {
 	var index int
-	queueLen := len(n.RoundRobinQ)
+	queueLen := len(g.RoundRobinQ)
 	if queueLen == 0 {
 		return nil, errors.ErrNoDatabase
 	}
 	if queueLen == 1 {
-		index = n.RoundRobinQ[0]
-		return n.Slave[index], nil
+		index = g.RoundRobinQ[0]
+		return g.Slave[index], nil
 	}
 
-	n.LastSlaveIndex = n.LastSlaveIndex % queueLen
-	index = n.RoundRobinQ[n.LastSlaveIndex]
-	if len(n.Slave) <= index {
+	g.LastSlaveIndex = g.LastSlaveIndex % queueLen
+	index = g.RoundRobinQ[g.LastSlaveIndex]
+	if len(g.Slave) <= index {
 		return nil, errors.ErrNoDatabase
 	}
-	db := n.Slave[index]
-	n.LastSlaveIndex++
-	n.LastSlaveIndex = n.LastSlaveIndex % queueLen
-	return db, nil
+	node := g.Slave[index]
+	g.LastSlaveIndex++
+	g.LastSlaveIndex = g.LastSlaveIndex % queueLen
+	return node, nil
 }
