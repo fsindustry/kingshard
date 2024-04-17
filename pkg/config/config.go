@@ -15,7 +15,9 @@
 package config
 
 import (
+	"fmt"
 	"io/ioutil"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 )
@@ -66,8 +68,30 @@ const (
 	NODEROLE_REPLICA  NodeRole = "replica"
 	NODEROLE_READONLY NodeRole = "readonly"
 	NODEROLE_ANALYSIS NodeRole = "analysis"
-	NODEROLE_DRAINED  NodeRole = "drained"
 )
+
+// 枚举类型实现UnmarshalYAML方法
+func (role *NodeRole) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	str = strings.TrimSpace(str)
+	if strings.EqualFold(str, string(NODEROLE_MASTER)) {
+		*role = NODEROLE_MASTER
+	} else if strings.EqualFold(str, string(NODEROLE_REPLICA)) {
+		*role = NODEROLE_REPLICA
+	} else if strings.EqualFold(str, string(NODEROLE_READONLY)) {
+		*role = NODEROLE_READONLY
+	} else if strings.EqualFold(str, string(NODEROLE_ANALYSIS)) {
+		*role = NODEROLE_ANALYSIS
+	} else {
+		return fmt.Errorf("unknown role: %s", str)
+	}
+
+	return nil
+}
 
 // node节点对应的配置
 type NodeConfig struct {

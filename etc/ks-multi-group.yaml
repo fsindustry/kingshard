@@ -67,8 +67,6 @@ groups:
         # 节点地址和端口
         addr: 127.0.0.1:3306
         weight: 3
-        #kingshard在300秒内都连接不上mysql，kingshard则会下线该mysql
-        down_after_noalive: 300
   - name: shard3 # 分片名称
     nodes:
       - name: node1 #node节点名字
@@ -87,8 +85,6 @@ groups:
         # 节点地址和端口
         addr: 127.0.0.1:3306
         weight: 3
-        #kingshard在300秒内都连接不上mysql，kingshard则会下线该mysql
-        down_after_noalive: 300
 
 # 各用户的分表规则
 schema_list:

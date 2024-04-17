@@ -155,8 +155,8 @@ func parseGroup(cfg config.GroupConfig) (*backend.Group, error) {
 	g.DownAfterNoAlive = time.Duration(cfg.DownAfterNoAlive) * time.Second
 
 	slaveCount := len(cfg.Nodes) - 1
-	g.Slave = make([]*backend.Node, 0, slaveCount-1)
-	g.SlaveWeights = make([]int, 0, slaveCount-1)
+	g.Slave = make([]*backend.Node, 0, slaveCount)
+	g.SlaveWeights = make([]int, 0, slaveCount)
 	for _, nodeConfig := range cfg.Nodes {
 		node, err := g.ParseNode(&nodeConfig)
 		if err != nil {
@@ -171,7 +171,9 @@ func parseGroup(cfg config.GroupConfig) (*backend.Group, error) {
 		}
 	}
 
-	g.InitBalancer()
+	if len(g.Slave) > 0 {
+		g.InitBalancer()
+	}
 
 	g.Online = true
 	go g.CheckNode()
