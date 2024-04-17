@@ -34,7 +34,7 @@ func (c *ClientConn) handleUseDB(dbName string) error {
 
 	nodeName := c.schema.rule.DefaultRule.Nodes[0]
 
-	n := c.proxy.GetNode(nodeName)
+	n := c.proxy.GetGroup(nodeName)
 	//get the connection from slave preferentially
 	co, err = c.getBackendConn(n, true)
 	defer c.closeConn(co, false)

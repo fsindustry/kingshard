@@ -74,7 +74,7 @@ func (c *ClientConn) handleStmtPrepare(sql string) error {
 
 	defaultRule := c.schema.rule.DefaultRule
 
-	n := c.proxy.GetNode(defaultRule.Nodes[0])
+	n := c.proxy.GetGroup(defaultRule.Nodes[0])
 
 	co, err := c.getBackendConn(n, false)
 	defer c.closeConn(co, false)
@@ -262,7 +262,7 @@ func (c *ClientConn) handlePrepareSelect(stmt *sqlparser.Select, sql string, arg
 	if len(defaultRule.Nodes) == 0 {
 		return errors.ErrNoDefaultNode
 	}
-	defaultNode := c.proxy.GetNode(defaultRule.Nodes[0])
+	defaultNode := c.proxy.GetGroup(defaultRule.Nodes[0])
 
 	//choose connection in slave DB first
 	conn, err := c.getBackendConn(defaultNode, true)
@@ -299,7 +299,7 @@ func (c *ClientConn) handlePrepareExec(stmt sqlparser.Statement, sql string, arg
 	if len(defaultRule.Nodes) == 0 {
 		return errors.ErrNoDefaultNode
 	}
-	defaultNode := c.proxy.GetNode(defaultRule.Nodes[0])
+	defaultNode := c.proxy.GetGroup(defaultRule.Nodes[0])
 
 	//execute in Master DB
 	conn, err := c.getBackendConn(defaultNode, false)

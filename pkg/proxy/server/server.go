@@ -148,40 +148,50 @@ func parseBlackListSqls(blackListFilePath string) (*BlacklistSqls, error) {
 	return bs, nil
 }
 
-func parseGroup(cfg config.NodeConfig) (*backend.Group, error) {
-	var err error
-	n := new(backend.Group)
-	n.Cfg = cfg
+func parseGroup(cfg config.GroupConfig) (*backend.Group, error) {
+	g := new(backend.Group)
+	g.Cfg = cfg
 
-	n.DownAfterNoAlive = time.Duration(cfg.DownAfterNoAlive) * time.Second
-	err = n.ParseMaster(cfg.Master)
-	if err != nil {
-		return nil, err
+	g.DownAfterNoAlive = time.Duration(cfg.DownAfterNoAlive) * time.Second
+
+	slaveCount := len(cfg.Nodes) - 1
+	g.Slave = make([]*backend.Node, 0, slaveCount-1)
+	g.SlaveWeights = make([]int, 0, slaveCount-1)
+	for _, nodeConfig := range cfg.Nodes {
+		node, err := g.ParseNode(&nodeConfig)
+		if err != nil {
+			return nil, fmt.Errorf("parse node [%s] duplicate", nodeConfig)
+		}
+
+		if nodeConfig.Role == config.NODEROLE_MASTER {
+			g.Master = node
+		} else {
+			g.Slave = append(g.Slave, node)
+			g.SlaveWeights = append(g.SlaveWeights, nodeConfig.Weight)
+		}
 	}
-	err = n.ParseSlave(cfg.Slave)
-	if err != nil {
-		return nil, err
-	}
 
-	n.Online = true
-	go n.CheckNode()
+	g.InitBalancer()
 
-	return n, nil
+	g.Online = true
+	go g.CheckNode()
+
+	return g, nil
 }
 
-func parseGroups(cfgNodes []config.NodeConfig) (map[string]*backend.Group, error) {
+func parseGroups(cfgNodes []config.GroupConfig) (map[string]*backend.Group, error) {
 	groups := make(map[string]*backend.Group, len(cfgNodes))
 	for _, v := range cfgNodes {
 		if _, ok := groups[v.Name]; ok {
 			return nil, fmt.Errorf("duplicate node [%s]", v.Name)
 		}
 
-		n, err := parseGroup(v)
+		g, err := parseGroup(v)
 		if err != nil {
 			return nil, err
 		}
 
-		groups[v.Name] = n
+		groups[v.Name] = g
 	}
 
 	return groups, nil
@@ -270,10 +280,10 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		s.allowips[another] = allowIps
 	}
 
-	if nodes, err := parseGroups(s.cfg.Nodes); err != nil {
+	if groups, err := parseGroups(s.cfg.Groups); err != nil {
 		return nil, err
 	} else {
-		s.groups = nodes
+		s.groups = groups
 	}
 
 	if schemas, err := parseSchemaList(s.cfg.SchemaList, s.groups); err != nil {
@@ -627,96 +637,92 @@ func (s *Server) Close() {
 	}
 }
 
-func (s *Server) DeleteSlave(node string, addr string) error {
+func (s *Server) DeleteSlave(group string, addr string) error {
 	addr = strings.Split(addr, backend.WeightSplit)[0]
-	n := s.GetNode(node)
-	if n == nil {
-		return fmt.Errorf("invalid node %s", node)
+	g := s.GetGroup(group)
+	if g == nil {
+		return fmt.Errorf("invalid group %s", group)
 	}
 
-	if err := n.DeleteSlave(addr); err != nil {
+	if err := g.DeleteSlave(addr); err != nil {
 		return err
 	}
 
-	//sync node slave to global config
-	for i, v1 := range s.cfg.Nodes {
-		if node == v1.Name {
-			s1 := strings.Split(v1.Slave, backend.SlaveSplit)
-			s2 := make([]string, 0, len(s1)-1)
-			for _, v2 := range s1 {
-				hostPort := strings.Split(v2, backend.WeightSplit)[0]
-				if addr != hostPort {
-					s2 = append(s2, v2)
+	//sync group slave to global config
+	for _, groupConfig := range s.cfg.Groups {
+		if group == groupConfig.Name {
+			newNodes := make([]config.NodeConfig, len(groupConfig.Nodes))
+			for _, nodeConfig := range groupConfig.Nodes {
+				if nodeConfig.Addr != addr {
+					newNodes = append(newNodes, nodeConfig)
 				}
 			}
-			s.cfg.Nodes[i].Slave = strings.Join(s2, backend.SlaveSplit)
+			groupConfig.Nodes = newNodes
 		}
 	}
 
 	return nil
 }
 
-func (s *Server) AddSlave(node string, addr string) error {
-	n := s.GetNode(node)
-	if n == nil {
-		return fmt.Errorf("invalid node %s", node)
+func (s *Server) AddSlave(groupName string, nodeConfig *config.NodeConfig) error {
+	group := s.GetGroup(groupName)
+	if group == nil {
+		return fmt.Errorf("invalid node %s", groupName)
 	}
 
-	if err := n.AddSlave(addr); err != nil {
+	if err := group.AddSlave(nodeConfig); err != nil {
 		return err
 	}
 
 	//sync node slave to global config
-	for i, v1 := range s.cfg.Nodes {
-		if v1.Name == node {
-			s1 := strings.Split(v1.Slave, backend.SlaveSplit)
-			s1 = append(s1, addr)
-			s.cfg.Nodes[i].Slave = strings.Join(s1, backend.SlaveSplit)
+	for _, groupConfig := range s.cfg.Groups {
+		if groupConfig.Name == groupName {
+			groupConfig.Nodes = append(groupConfig.Nodes, *nodeConfig)
 		}
 	}
 
 	return nil
 }
 
-func (s *Server) UpMaster(node string, addr string) error {
-	n := s.GetNode(node)
-	if n == nil {
-		return fmt.Errorf("invalid node %s", node)
+func (s *Server) UpMaster(groupName string, nodeConfig *config.NodeConfig) error {
+	g := s.GetGroup(groupName)
+	if g == nil {
+		return fmt.Errorf("invalid groupName %s", groupName)
 	}
 
-	return n.UpMaster(addr)
+	return g.UpMaster(nodeConfig)
 }
 
-func (s *Server) UpSlave(node string, addr string) error {
-	n := s.GetNode(node)
+func (s *Server) UpSlave(groupName string, nodeConfig *config.NodeConfig) error {
+	n := s.GetGroup(groupName)
 	if n == nil {
-		return fmt.Errorf("invalid node %s", node)
+		return fmt.Errorf("invalid groupName %s", groupName)
 	}
 
-	return n.UpSlave(addr)
+	return n.UpSlave(nodeConfig)
 }
 
-func (s *Server) DownMaster(node, masterAddr string) error {
-	n := s.GetNode(node)
-	if n == nil {
-		return fmt.Errorf("invalid node %s", node)
+func (s *Server) DownMaster(groupName, masterAddr string) error {
+	group := s.GetGroup(groupName)
+	if group == nil {
+		return fmt.Errorf("invalid groupName %s", groupName)
 	}
-	return n.DownMaster(masterAddr, backend.ManualDown)
+	return group.DownMaster(masterAddr, backend.ManualDown)
 }
 
-func (s *Server) DownSlave(node, slaveAddr string) error {
-	n := s.GetNode(node)
+func (s *Server) DownSlave(groupName, slaveAddr string) error {
+	n := s.GetGroup(groupName)
 	if n == nil {
-		return fmt.Errorf("invalid node [%s].", node)
+		return fmt.Errorf("invalid groupName [%s].", groupName)
 	}
 	return n.DownSlave(slaveAddr, backend.ManualDown)
 }
 
-func (s *Server) GetNode(name string) *backend.Group {
+func (s *Server) GetGroup(name string) *backend.Group {
 	return s.groups[name]
 }
 
-func (s *Server) GetAllNodes() map[string]*backend.Group {
+func (s *Server) GetAllGroups() map[string]*backend.Group {
 	return s.groups
 }
 
@@ -768,7 +774,7 @@ func (s *Server) UpdateConfig(newCfg *config.Config) {
 	}
 
 	//parse new groups
-	nodes, err := parseGroups(newCfg.Nodes)
+	nodes, err := parseGroups(newCfg.Groups)
 	if nil != err {
 		golog.Error("Server", "UpdateConfig", err.Error(), 0)
 		return
@@ -845,23 +851,23 @@ func (s *Server) UpdateConfig(newCfg *config.Config) {
 func (s *Server) GetMonitorData() map[string]map[string]string {
 	data := make(map[string]map[string]string)
 
-	// get all node's monitor data
-	for _, node := range s.groups {
+	// get all group's monitor data
+	for _, group := range s.groups {
 		//get master monitor data
 		dbData := make(map[string]string)
-		idleConns, cacheConns, pushConnCount, popConnCount := node.Master.ConnCount()
+		idleConns, cacheConns, pushConnCount, popConnCount := group.Master.ConnCount()
 
 		dbData["idleConn"] = strconv.Itoa(idleConns)
 		dbData["cacheConns"] = strconv.Itoa(cacheConns)
 		dbData["pushConnCount"] = strconv.FormatInt(pushConnCount, 10)
 		dbData["popConnCount"] = strconv.FormatInt(popConnCount, 10)
-		dbData["maxConn"] = fmt.Sprintf("%d", node.Cfg.MaxConnNum)
+		dbData["maxConn"] = fmt.Sprintf("%d", group.Master.MaxConnNum())
 		dbData["type"] = "master"
 
-		data[node.Master.Addr()] = dbData
+		data[group.Master.Addr()] = dbData
 
 		//get all slave monitor data
-		for _, slaveNode := range node.Slave {
+		for _, slaveNode := range group.Slave {
 			slaveDbData := make(map[string]string)
 			idleConns, cacheConns, pushConnCount, popConnCount := slaveNode.ConnCount()
 
@@ -869,7 +875,7 @@ func (s *Server) GetMonitorData() map[string]map[string]string {
 			slaveDbData["cacheConns"] = strconv.Itoa(cacheConns)
 			slaveDbData["pushConnCount"] = strconv.FormatInt(pushConnCount, 10)
 			slaveDbData["popConnCount"] = strconv.FormatInt(popConnCount, 10)
-			slaveDbData["maxConn"] = fmt.Sprintf("%d", node.Cfg.MaxConnNum)
+			slaveDbData["maxConn"] = fmt.Sprintf("%d", slaveNode.MaxConnNum())
 			slaveDbData["type"] = "slave"
 
 			data[slaveNode.Addr()] = slaveDbData

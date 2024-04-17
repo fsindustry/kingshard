@@ -174,7 +174,7 @@ func (c *ClientConn) getShardConns(fromSlave bool, plan *router.Plan) (map[strin
 	groups := make([]*backend.Group, 0, nodesCount)
 	for i := 0; i < nodesCount; i++ {
 		nodeIndex := plan.RouteNodeIndexs[i]
-		groups = append(groups, c.proxy.GetNode(plan.Rule.Nodes[nodeIndex]))
+		groups = append(groups, c.proxy.GetGroup(plan.Rule.Nodes[nodeIndex]))
 	}
 	if c.isInTransaction() {
 		if 1 < len(groups) {

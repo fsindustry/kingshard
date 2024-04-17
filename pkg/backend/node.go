@@ -15,6 +15,7 @@
 package backend
 
 import (
+	"github.com/fsindustry/kingshard/pkg/config"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -36,6 +37,10 @@ const (
 
 type Node struct {
 	sync.RWMutex
+	name      string
+	weight    int
+	checkAddr string
+	role      config.NodeRole
 
 	addr     string
 	user     string
@@ -52,6 +57,10 @@ type Node struct {
 
 	pushConnCount int64
 	popConnCount  int64
+}
+
+func (node *Node) MaxConnNum() int {
+	return node.maxConnNum
 }
 
 func Open(addr string, user string, password string, dbName string, maxConnNum int) (*Node, error) {
@@ -417,4 +426,17 @@ func (node *Node) SetLastPing() {
 
 func (node *Node) GetLastPing() int64 {
 	return node.lastPing
+}
+
+func (node *Node) ExtractNodeConfig() *config.NodeConfig {
+	return &config.NodeConfig{
+		Name:       node.name,
+		MaxConnNum: node.maxConnNum,
+		User:       node.user,
+		Password:   node.password,
+		Role:       node.role,
+		Addr:       node.addr,
+		CheckAddr:  node.checkAddr,
+		Weight:     node.weight,
+	}
 }

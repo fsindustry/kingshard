@@ -17,6 +17,7 @@ package server
 import (
 	"bufio"
 	"fmt"
+	"github.com/fsindustry/kingshard/pkg/config"
 	"io"
 	"os"
 	"strconv"
@@ -31,9 +32,6 @@ import (
 )
 
 const (
-	Master = "master"
-	Slave  = "slave"
-
 	ServerRegion = "server"
 	NodeRegion   = "node"
 
@@ -63,7 +61,7 @@ var cmdNodeOrder = []string{"opt", "node", "k", "v"}
 
 func (c *ClientConn) handleNodeCmd(rows sqlparser.InsertRows) error {
 	var err error
-	var opt, nodeName, role, addr string
+	var opt, groupName, role, addr string
 
 	vals := rows.(sqlparser.Values)
 	if len(vals) == 0 {
@@ -78,8 +76,8 @@ func (c *ClientConn) handleNodeCmd(rows sqlparser.InsertRows) error {
 	opt = sqlparser.String(tuple[0])
 	opt = strings.Trim(opt, "'")
 
-	nodeName = sqlparser.String(tuple[1])
-	nodeName = strings.Trim(nodeName, "'")
+	groupName = sqlparser.String(tuple[1])
+	groupName = strings.Trim(groupName, "'")
 
 	role = sqlparser.String(tuple[2])
 	role = strings.Trim(role, "'")
@@ -87,32 +85,21 @@ func (c *ClientConn) handleNodeCmd(rows sqlparser.InsertRows) error {
 	addr = sqlparser.String(tuple[3])
 	addr = strings.Trim(addr, "'")
 
+	nodeConfig := &config.NodeConfig{
+		Role:      config.NodeRole(role),
+		Addr:      addr,
+		CheckAddr: addr,
+	}
+
 	switch strings.ToLower(opt) {
 	case ADMIN_OPT_ADD:
-		err = c.AddDatabase(
-			nodeName,
-			role,
-			addr,
-		)
+		err = c.AddNode(groupName, nodeConfig)
 	case ADMIN_OPT_DEL:
-		err = c.DeleteDatabase(
-			nodeName,
-			role,
-			addr,
-		)
-
+		err = c.DeleteNode(groupName, nodeConfig)
 	case ADMIN_OPT_UP:
-		err = c.UpDatabase(
-			nodeName,
-			role,
-			addr,
-		)
+		err = c.UpNode(groupName, nodeConfig)
 	case ADMIN_OPT_DOWN:
-		err = c.DownDatabase(
-			nodeName,
-			role,
-			addr,
-		)
+		err = c.DownNode(groupName, nodeConfig)
 	default:
 		err = errors.ErrCmdUnsupport
 		golog.Error("ClientConn", "handleNodeCmd", err.Error(),
@@ -168,44 +155,38 @@ func (c *ClientConn) handleServerCmd(rows sqlparser.InsertRows) (*mysql.Resultse
 	return result, nil
 }
 
-func (c *ClientConn) AddDatabase(nodeName string, role string, addr string) error {
+func (c *ClientConn) AddNode(groupName string, nodeConfig *config.NodeConfig) error {
 	//can not add a new master database
-	if role != Slave {
+	if nodeConfig.Role == config.NODEROLE_MASTER {
 		return errors.ErrCmdUnsupport
 	}
 
-	return c.proxy.AddSlave(nodeName, addr)
+	return c.proxy.AddSlave(groupName, nodeConfig)
 }
 
-func (c *ClientConn) DeleteDatabase(nodeName string, role string, addr string) error {
+func (c *ClientConn) DeleteNode(groupName string, nodeConfig *config.NodeConfig) error {
 	//can not delete a master database
-	if role != Slave {
+	if nodeConfig.Role == config.NODEROLE_MASTER {
 		return errors.ErrCmdUnsupport
 	}
 
-	return c.proxy.DeleteSlave(nodeName, addr)
+	return c.proxy.DeleteSlave(groupName, nodeConfig.Addr)
 }
 
-func (c *ClientConn) UpDatabase(nodeName string, role string, addr string) error {
-	if role != Master && role != Slave {
-		return errors.ErrCmdUnsupport
-	}
-	if role == Master {
-		return c.proxy.UpMaster(nodeName, addr)
+func (c *ClientConn) UpNode(nodeName string, nodeConfig *config.NodeConfig) error {
+	if nodeConfig.Role == config.NODEROLE_MASTER {
+		return c.proxy.UpMaster(nodeName, nodeConfig)
 	}
 
-	return c.proxy.UpSlave(nodeName, addr)
+	return c.proxy.UpSlave(nodeName, nodeConfig)
 }
 
-func (c *ClientConn) DownDatabase(nodeName string, role string, addr string) error {
-	if role != Master && role != Slave {
-		return errors.ErrCmdUnsupport
-	}
-	if role == Master {
-		return c.proxy.DownMaster(nodeName, addr)
+func (c *ClientConn) DownNode(nodeName string, nodeConfig *config.NodeConfig) error {
+	if nodeConfig.Role == config.NODEROLE_MASTER {
+		return c.proxy.DownMaster(nodeName, nodeConfig.Addr)
 	}
 
-	return c.proxy.DownSlave(nodeName, addr)
+	return c.proxy.DownSlave(nodeName, nodeConfig.Addr)
 }
 
 func (c *ClientConn) checkCmdOrder(region string, columns sqlparser.Columns) error {
@@ -461,26 +442,26 @@ func (c *ClientConn) handleShowNodeConfig() (*mysql.Resultset, error) {
 	)
 
 	//var nodeRows [][]string
-	for name, node := range c.schema.groups {
+	for name, group := range c.schema.groups {
 		//"master"
-		idleConns, cacheConns, pushConnCount, popConnCount := node.Master.ConnCount()
+		idleConns, cacheConns, pushConnCount, popConnCount := group.Master.ConnCount()
 
 		rows = append(
 			rows,
 			[]string{
 				name,
-				node.Master.Addr(),
+				group.Master.Addr(),
 				"master",
-				node.Master.State(),
-				fmt.Sprintf("%v", time.Unix(node.Master.GetLastPing(), 0)),
-				strconv.Itoa(node.Cfg.MaxConnNum),
+				group.Master.State(),
+				fmt.Sprintf("%v", time.Unix(group.Master.GetLastPing(), 0)),
+				strconv.Itoa(group.Master.MaxConnNum()),
 				strconv.Itoa(idleConns),
 				strconv.Itoa(cacheConns),
 				strconv.FormatInt(pushConnCount, 10),
 				strconv.FormatInt(popConnCount, 10),
 			})
 		//"slave"
-		for _, slave := range node.Slave {
+		for _, slave := range group.Slave {
 			if slave != nil {
 				idleConns, cacheConns, pushConnCount, popConnCount := slave.ConnCount()
 
@@ -492,7 +473,7 @@ func (c *ClientConn) handleShowNodeConfig() (*mysql.Resultset, error) {
 						"slave",
 						slave.State(),
 						fmt.Sprintf("%v", time.Unix(slave.GetLastPing(), 0)),
-						strconv.Itoa(node.Cfg.MaxConnNum),
+						strconv.Itoa(slave.MaxConnNum()),
 						strconv.Itoa(idleConns),
 						strconv.Itoa(cacheConns),
 						strconv.FormatInt(pushConnCount, 10),

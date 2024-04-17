@@ -15,8 +15,6 @@
 package backend
 
 import (
-	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -34,7 +32,7 @@ const (
 )
 
 type Group struct {
-	Cfg config.NodeConfig
+	Cfg config.GroupConfig
 
 	sync.RWMutex
 	Master *Node
@@ -94,35 +92,35 @@ func (g *Group) GetSlaveConn() (*BackendConn, error) {
 }
 
 func (g *Group) checkMaster() {
-	db := g.Master
-	if db == nil {
+	master := g.Master
+	if master == nil {
 		golog.Error("Group", "checkMaster", "Master is no alive", 0)
 		return
 	}
 
-	if err := db.Ping(); err != nil {
-		golog.Error("Group", "checkMaster", "Ping", 0, "node.Addr", db.Addr(), "error", err.Error())
+	if err := master.Ping(); err != nil {
+		golog.Error("Group", "checkMaster", "Ping", 0, "master.Addr", master.Addr(), "error", err.Error())
 	} else {
-		if atomic.LoadInt32(&(db.state)) == Down {
-			golog.Info("Group", "checkMaster", "Master up", 0, "node.Addr", db.Addr())
-			err := g.UpMaster(db.addr)
+		if atomic.LoadInt32(&(master.state)) == Down {
+			golog.Info("Group", "checkMaster", "Master up", 0, "master.Addr", master.Addr())
+			err := g.UpMaster(master.ExtractNodeConfig())
 			if err != nil {
-				golog.Error("Group", "checkMaster", "UpMaster", 0, "node.Addr", db.Addr(), "error", err.Error())
+				golog.Error("Group", "checkMaster", "UpMaster", 0, "master.Addr", master.Addr(), "error", err.Error())
 				return
 			}
 		}
-		db.SetLastPing()
-		if atomic.LoadInt32(&(db.state)) != ManualDown {
-			atomic.StoreInt32(&(db.state), Up)
+		master.SetLastPing()
+		if atomic.LoadInt32(&(master.state)) != ManualDown {
+			atomic.StoreInt32(&(master.state), Up)
 		}
 		return
 	}
 
-	if int64(g.DownAfterNoAlive) > 0 && time.Now().Unix()-db.GetLastPing() > int64(g.DownAfterNoAlive/time.Second) {
+	if int64(g.DownAfterNoAlive) > 0 && time.Now().Unix()-master.GetLastPing() > int64(g.DownAfterNoAlive/time.Second) {
 		golog.Info("Group", "checkMaster", "Master down", 0,
-			"node.Addr", db.Addr(),
+			"master.Addr", master.Addr(),
 			"Master_down_time", int64(g.DownAfterNoAlive/time.Second))
-		g.DownMaster(db.addr, Down)
+		g.DownMaster(master.addr, Down)
 	}
 }
 
@@ -142,7 +140,7 @@ func (g *Group) checkSlave() {
 		} else {
 			if atomic.LoadInt32(&(slaves[i].state)) == Down {
 				golog.Info("Group", "checkSlave", "Slave up", 0, "node.Addr", slaves[i].Addr())
-				g.UpSlave(slaves[i].addr)
+				g.UpSlave(slaves[i].ExtractNodeConfig())
 			}
 			slaves[i].SetLastPing()
 			if atomic.LoadInt32(&(slaves[i].state)) != ManualDown {
@@ -162,31 +160,22 @@ func (g *Group) checkSlave() {
 
 }
 
-func (g *Group) AddSlave(addr string) error {
+func (g *Group) AddSlave(nodeConfig *config.NodeConfig) error {
 	var node *Node
-	var weight int
 	var err error
-	if len(addr) == 0 {
+	if nodeConfig == nil || len(nodeConfig.Addr) == 0 {
 		return errors.ErrAddressNull
 	}
 	g.Lock()
 	defer g.Unlock()
 	for _, v := range g.Slave {
-		if strings.Split(v.addr, WeightSplit)[0] == strings.Split(addr, WeightSplit)[0] {
+		if v.addr == nodeConfig.Addr {
 			return errors.ErrSlaveExist
 		}
 	}
-	addrAndWeight := strings.Split(addr, WeightSplit)
-	if len(addrAndWeight) == 2 {
-		weight, err = strconv.Atoi(addrAndWeight[1])
-		if err != nil {
-			return err
-		}
-	} else {
-		weight = 1
-	}
-	g.SlaveWeights = append(g.SlaveWeights, weight)
-	if node, err = g.OpenNode(addrAndWeight[0]); err != nil {
+
+	g.SlaveWeights = append(g.SlaveWeights, nodeConfig.Weight)
+	if node, err = g.OpenNode(nodeConfig); err != nil {
 		return err
 	} else {
 		g.Slave = append(g.Slave, node)
@@ -233,13 +222,13 @@ func (g *Group) DeleteSlave(addr string) error {
 	return nil
 }
 
-func (g *Group) OpenNode(addr string) (*Node, error) {
-	node, err := Open(addr, g.Cfg.User, g.Cfg.Password, "", g.Cfg.MaxConnNum)
+func (g *Group) OpenNode(nodeConfig *config.NodeConfig) (*Node, error) {
+	node, err := Open(nodeConfig.Addr, nodeConfig.User, nodeConfig.Password, "", nodeConfig.MaxConnNum)
 	return node, err
 }
 
-func (g *Group) UpNode(addr string) (*Node, error) {
-	node, err := g.OpenNode(addr)
+func (g *Group) UpNode(nodeConfig *config.NodeConfig) (*Node, error) {
+	node, err := g.OpenNode(nodeConfig)
 
 	if err != nil {
 		return nil, err
@@ -254,44 +243,44 @@ func (g *Group) UpNode(addr string) (*Node, error) {
 	return node, nil
 }
 
-func (g *Group) UpMaster(addr string) error {
-	db, err := g.UpNode(addr)
+func (g *Group) UpMaster(nodeConfig *config.NodeConfig) error {
+	node, err := g.UpNode(nodeConfig)
 	if err != nil {
 		golog.Error("Group", "UpMaster", err.Error(), 0)
 		return err
 	}
-	g.Master = db
+	g.Master = node
 	return err
 }
 
-func (g *Group) UpSlave(addr string) error {
-	db, err := g.UpNode(addr)
+func (g *Group) UpSlave(nodeConfig *config.NodeConfig) error {
+	node, err := g.UpNode(nodeConfig)
 	if err != nil {
 		golog.Error("Group", "UpSlave", err.Error(), 0)
 	}
 
 	g.Lock()
 	for k, slave := range g.Slave {
-		if slave.addr == addr {
-			g.Slave[k] = db
+		if slave.addr == nodeConfig.Addr {
+			g.Slave[k] = node
 			g.Unlock()
 			return nil
 		}
 	}
-	g.Slave = append(g.Slave, db)
+	g.Slave = append(g.Slave, node)
 	g.Unlock()
 
 	return err
 }
 
 func (g *Group) DownMaster(addr string, state int32) error {
-	db := g.Master
-	if db == nil || db.addr != addr {
+	master := g.Master
+	if master == nil || master.addr != addr {
 		return errors.ErrNoMasterDB
 	}
 
-	db.Close()
-	atomic.StoreInt32(&(db.state), state)
+	master.Close()
+	atomic.StoreInt32(&(master.state), state)
 	return nil
 }
 
@@ -316,48 +305,30 @@ func (g *Group) DownSlave(addr string, state int32) error {
 	return nil
 }
 
-func (g *Group) ParseMaster(masterStr string) error {
+func (g *Group) ParseNode(nodeConfig *config.NodeConfig) (*Node, error) {
 	var err error
-	if len(masterStr) == 0 {
-		return errors.ErrNoMasterDB
+	if nodeConfig == nil {
+		return nil, errors.ErrNoMasterDB
 	}
 
-	g.Master, err = g.OpenNode(masterStr)
-	return err
+	n, err := g.OpenNode(nodeConfig)
+	if err != nil {
+		return nil, err
+	}
+	return n, nil
 }
 
-// slaveStr(127.0.0.1:3306@2,192.168.0.12:3306@3)
-func (g *Group) ParseSlave(slaveStr string) error {
-	var node *Node
-	var weight int
-	var err error
+func (g *Group) GetSlave(addr string) (*Node, error) {
 
-	if len(slaveStr) == 0 {
-		return nil
+	if len(addr) == 0 {
+		return nil, errors.ErrAddressNull
 	}
-	slaveStr = strings.Trim(slaveStr, SlaveSplit)
-	slaveArray := strings.Split(slaveStr, SlaveSplit)
-	count := len(slaveArray)
-	g.Slave = make([]*Node, 0, count)
-	g.SlaveWeights = make([]int, 0, count)
 
-	//parse addr and weight
-	for i := 0; i < count; i++ {
-		addrAndWeight := strings.Split(slaveArray[i], WeightSplit)
-		if len(addrAndWeight) == 2 {
-			weight, err = strconv.Atoi(addrAndWeight[1])
-			if err != nil {
-				return err
-			}
-		} else {
-			weight = 1
+	for _, node := range g.Slave {
+		if addr == node.addr {
+			return node, nil
 		}
-		g.SlaveWeights = append(g.SlaveWeights, weight)
-		if node, err = g.OpenNode(addrAndWeight[0]); err != nil {
-			return err
-		}
-		g.Slave = append(g.Slave, node)
 	}
-	g.InitBalancer()
-	return nil
+
+	return nil, errors.ErrSlaveNotExist
 }

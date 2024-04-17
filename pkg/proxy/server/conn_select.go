@@ -56,7 +56,7 @@ func (c *ClientConn) handleFieldList(data []byte) error {
 
 	nodeName := c.schema.rule.GetRule(c.db, table).Nodes[0]
 
-	n := c.proxy.GetNode(nodeName)
+	n := c.proxy.GetGroup(nodeName)
 	co, err := c.getBackendConn(n, false)
 	defer c.closeConn(co, false)
 	if err != nil {

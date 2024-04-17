@@ -17,6 +17,7 @@ package web
 import (
 	"errors"
 	"fmt"
+	"github.com/fsindustry/kingshard/pkg/config"
 	"net/http"
 	"strconv"
 	"strings"
@@ -86,7 +87,7 @@ func (s *ApiServer) GetNodesStatus(c echo.Context) error {
 	var masterStatus, slaveStatus DBStatus
 
 	dbStatus := make([]DBStatus, 0, 1)
-	nodes := s.proxy.GetAllNodes()
+	nodes := s.proxy.GetAllGroups()
 
 	for nodeName, node := range nodes {
 		//get master counter
@@ -98,7 +99,7 @@ func (s *ApiServer) GetNodesStatus(c echo.Context) error {
 		masterStatus.Type = "master"
 		masterStatus.Status = node.Master.State()
 		masterStatus.LastPing = fmt.Sprintf("%v", time.Unix(node.Master.GetLastPing(), 0))
-		masterStatus.MaxConn = node.Cfg.MaxConnNum
+		masterStatus.MaxConn = node.Master.MaxConnNum()
 		masterStatus.IdleConn = idleConns
 		masterStatus.CacheConn = cacheConns
 		masterStatus.PushConnCount = pushConnCount
@@ -115,7 +116,7 @@ func (s *ApiServer) GetNodesStatus(c echo.Context) error {
 			slaveStatus.Type = "slave"
 			slaveStatus.Status = slave.State()
 			slaveStatus.LastPing = fmt.Sprintf("%v", time.Unix(slave.GetLastPing(), 0))
-			slaveStatus.MaxConn = node.Cfg.MaxConnNum
+			slaveStatus.MaxConn = slave.MaxConnNum()
 			slaveStatus.IdleConn = idleConns
 			slaveStatus.CacheConn = cacheConns
 			slaveStatus.PushConnCount = pushConnCount
@@ -135,7 +136,13 @@ func (s *ApiServer) AddOneSlave(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	err = s.proxy.AddSlave(args.Node, args.Addr)
+
+	nodeConfig := &config.NodeConfig{
+		Role:      config.NODEROLE_READONLY,
+		Addr:      args.Addr,
+		CheckAddr: args.Addr,
+	}
+	err = s.proxy.AddSlave(args.Node, nodeConfig)
 	if err != nil {
 		return err
 	}
@@ -177,7 +184,12 @@ func (s *ApiServer) ChangeSlaveStatus(c echo.Context) error {
 	if args.Opt == "down" {
 		err = s.proxy.DownSlave(args.Node, args.Addr)
 	} else {
-		err = s.proxy.UpSlave(args.Node, args.Addr)
+		nodeConfig := &config.NodeConfig{
+			Role:      config.NODEROLE_READONLY,
+			Addr:      args.Addr,
+			CheckAddr: args.Addr,
+		}
+		err = s.proxy.UpSlave(args.Node, nodeConfig)
 	}
 	if err != nil {
 		return err
@@ -204,7 +216,12 @@ func (s *ApiServer) ChangeMasterStatus(c echo.Context) error {
 	if args.Opt == "down" {
 		err = s.proxy.DownMaster(args.Node, args.Addr)
 	} else {
-		err = s.proxy.UpMaster(args.Node, args.Addr)
+		nodeConfig := &config.NodeConfig{
+			Role:      config.NODEROLE_MASTER,
+			Addr:      args.Addr,
+			CheckAddr: args.Addr,
+		}
+		err = s.proxy.UpMaster(args.Node, nodeConfig)
 	}
 	if err != nil {
 		return err

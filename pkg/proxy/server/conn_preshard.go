@@ -214,7 +214,7 @@ func (c *ClientConn) setExecuteNode(tokens []string, tokensLen int, executeDB *E
 		if len(defaultRule.Nodes) == 0 {
 			return errors.ErrNoDefaultNode
 		}
-		executeDB.ExecNode = c.proxy.GetNode(defaultRule.Nodes[0])
+		executeDB.ExecNode = c.proxy.GetGroup(defaultRule.Nodes[0])
 	}
 
 	return nil

@@ -40,7 +40,6 @@ type Config struct {
 	AllowIps    string        `yaml:"allow_ips"`
 	BlsFile     string        `yaml:"blacklist_sql_file"`
 	Charset     string        `yaml:"proxy_charset"`
-	Nodes       []NodeConfig  `yaml:"nodes"`
 	Groups      []GroupConfig `yaml:"groups"`
 
 	SchemaList []SchemaConfig `yaml:"schema_list"`
@@ -54,25 +53,34 @@ type UserConfig struct {
 
 // shard group
 type GroupConfig struct {
-	Name  string       `yaml:"name"`
-	Nodes []NodeConfig `yaml:"nodes"`
+	Name             string       `yaml:"name"`
+	DownAfterNoAlive int          `yaml:"down_after_noalive"`
+	Nodes            []NodeConfig `yaml:"nodes"`
 }
+
+// 定义枚举类型
+type NodeRole string
+
+const (
+	NODEROLE_MASTER   NodeRole = "master"
+	NODEROLE_REPLICA  NodeRole = "replica"
+	NODEROLE_READONLY NodeRole = "readonly"
+	NODEROLE_ANALYSIS NodeRole = "analysis"
+	NODEROLE_DRAINED  NodeRole = "drained"
+)
 
 // node节点对应的配置
 type NodeConfig struct {
-	Name             string `yaml:"name"`
-	DownAfterNoAlive int    `yaml:"down_after_noalive"`
-	MaxConnNum       int    `yaml:"max_conns_limit"`
+	Name       string `yaml:"name"`
+	MaxConnNum int    `yaml:"max_conns_limit"`
 
 	User     string `yaml:"user"`
 	Password string `yaml:"password"`
 
-	Role      string `yaml:"role"`
-	Addr      string `yaml:"addr"`
-	CheckAddr string `yaml:"checkAddr"`
-
-	Master string `yaml:"master"`
-	Slave  string `yaml:"slave"`
+	Role      NodeRole `yaml:"role"`
+	Addr      string   `yaml:"addr"`
+	CheckAddr string   `yaml:"checkAddr"`
+	Weight    int      `yaml:"weight"`
 }
 
 // schema对应的结构体

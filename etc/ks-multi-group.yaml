@@ -30,6 +30,8 @@ proxy_charset: utf8mb4
 # 一个node节点表示mysql集群的一个数据分片，包括一主多从（可以不配置从库）
 groups:
   - name: shard1 # 分片名称
+    #kingshard在300秒内都连接不上mysql，kingshard则会下线该mysql
+    down_after_noalive: 300
     nodes:
       - name: node1 #node节点名字
         # 连接池中最大空闲连接数，也就是最多与后端DB建立max_conns_limit个连接
@@ -41,15 +43,12 @@ groups:
         # MASTER：主库；
         # REPLICA：备库，可提升为主；
         # READONLY：从库，提供只读请求，以及运维任务，包括：备份、dump数据、分析型任务执行；
-        # BACKUP：备份实例，提供备份快找；
         # ANALYSIS：分析型实例，专门进行计算任务SQL的执行
         # DRAINED：下线状态的实例，比如进行重分片操作的实例；
         role: Master
         # 节点地址和端口
         addr: 127.0.0.1:3306
         weight: 3
-        #kingshard在300秒内都连接不上mysql，kingshard则会下线该mysql
-        down_after_noalive: 300
   - name: shard2 # 分片名称
     nodes:
       - name: node1 #node节点名字
@@ -62,7 +61,6 @@ groups:
         # MASTER：主库；
         # REPLICA：备库，可提升为主；
         # READONLY：从库，提供只读请求，以及运维任务，包括：备份、dump数据、分析型任务执行；
-        # BACKUP：备份实例，提供备份快找；
         # ANALYSIS：分析型实例，专门进行计算任务SQL的执行
         # DRAINED：下线状态的实例，比如进行重分片操作的实例；
         role: Master
@@ -83,7 +81,6 @@ groups:
         # MASTER：主库；
         # REPLICA：备库，可提升为主；
         # READONLY：从库，提供只读请求，以及运维任务，包括：备份、dump数据、分析型任务执行；
-        # BACKUP：备份实例，提供备份快找；
         # ANALYSIS：分析型实例，专门进行计算任务SQL的执行
         # DRAINED：下线状态的实例，比如进行重分片操作的实例；
         role: Master
