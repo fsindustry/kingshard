@@ -575,6 +575,7 @@ func (s *Server) saveBlackSql() error {
 		)
 		return err
 	}
+	defer f.Close()
 
 	for _, v := range s.blacklistSqls[s.blacklistSqlsIndex].sqls {
 		v = v + "\n"
